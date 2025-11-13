@@ -431,6 +431,9 @@ class Game {
 
     drawNext() {
         const size = 30;
+        // Clear the canvas completely
+        this.nextCtx.clearRect(0, 0, this.nextCanvas.width, this.nextCanvas.height);
+        // Fill with background color
         this.nextCtx.fillStyle = 'rgba(255, 255, 255, 0.1)';
         this.nextCtx.fillRect(0, 0, this.nextCanvas.width, this.nextCanvas.height);
 
