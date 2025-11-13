@@ -5,25 +5,37 @@ A classic Tetris game implementation using HTML5, CSS3, and vanilla JavaScript.
 ## Features
 
 - Classic Tetris gameplay with all 7 tetromino shapes (I, O, T, S, Z, J, L)
-- Smooth piece rotation with wall-kick mechanics
-- Next piece preview
+- Clockwise and counter-clockwise rotation with wall-kick mechanics
+- Next piece preview (no duplicates!)
 - Score tracking with level progression
 - Line clearing with combo scoring
 - Pause functionality
 - Game over detection and restart option
 - Responsive design with beautiful gradient UI
-- Keyboard controls
+- Full keyboard controls
+- On-screen touch buttons for mobile devices
 
 ## How to Play
 
 1. Open `index.html` in a web browser
 2. The game starts automatically
-3. Use keyboard controls to play:
+3. Use keyboard or on-screen buttons to play
+
+### Keyboard Controls
    - **← / →** : Move piece left/right
-   - **↑** : Rotate piece
+   - **↑ or X** : Rotate clockwise
+   - **Z** : Rotate counter-clockwise
    - **↓** : Soft drop (move down faster)
    - **Space** : Hard drop (instant drop)
    - **P** : Pause/Resume game
+
+### Mobile/Touch Controls
+   - Use the on-screen buttons for all game controls
+   - **↶ Z** : Rotate counter-clockwise
+   - **↷ X** : Rotate clockwise
+   - **←** / **↓** / **→** : Movement
+   - **DROP** : Hard drop
+   - **PAUSE** : Pause/Resume
 
 ## Scoring
 

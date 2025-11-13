@@ -137,6 +137,15 @@ class Game {
         document.getElementById('restartBtn').addEventListener('click', () => this.restart());
         document.addEventListener('keydown', (e) => this.handleKeyPress(e));
 
+        // Mobile control buttons
+        document.getElementById('leftBtn').addEventListener('click', () => this.movePiece(-1, 0));
+        document.getElementById('rightBtn').addEventListener('click', () => this.movePiece(1, 0));
+        document.getElementById('downBtn').addEventListener('click', () => this.movePiece(0, 1));
+        document.getElementById('rotateLeftBtn').addEventListener('click', () => this.rotatePieceCounterClockwise());
+        document.getElementById('rotateRightBtn').addEventListener('click', () => this.rotatePiece());
+        document.getElementById('dropBtn').addEventListener('click', () => this.hardDrop());
+        document.getElementById('pauseBtn').addEventListener('click', () => this.togglePause());
+
         requestAnimationFrame((time) => this.update(time));
     }
 
@@ -169,8 +178,15 @@ class Game {
                 this.movePiece(0, 1);
                 break;
             case 'ArrowUp':
+            case 'x':
+            case 'X':
                 e.preventDefault();
                 this.rotatePiece();
+                break;
+            case 'z':
+            case 'Z':
+                e.preventDefault();
+                this.rotatePieceCounterClockwise();
                 break;
             case ' ':
                 e.preventDefault();
@@ -233,6 +249,31 @@ class Game {
                     this.currentPiece.x--;
                     this.currentPiece.shape = previousShape;
                     this.currentPiece.rotation = (nextRotation - 1 + shapes.length) % shapes.length;
+                }
+            }
+        }
+    }
+
+    rotatePieceCounterClockwise() {
+        const shapes = SHAPES[this.currentPiece.type];
+        const nextRotation = (this.currentPiece.rotation - 1 + shapes.length) % shapes.length;
+        const previousShape = this.currentPiece.shape;
+
+        this.currentPiece.shape = shapes[nextRotation];
+        this.currentPiece.rotation = nextRotation;
+
+        // Wall kick: try adjusting position if rotation causes collision
+        if (this.collision()) {
+            // Try moving left
+            this.currentPiece.x--;
+            if (this.collision()) {
+                // Try moving right instead
+                this.currentPiece.x += 2;
+                if (this.collision()) {
+                    // Revert rotation if no valid position found
+                    this.currentPiece.x--;
+                    this.currentPiece.shape = previousShape;
+                    this.currentPiece.rotation = (nextRotation + 1) % shapes.length;
                 }
             }
         }
