@@ -7,9 +7,58 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <!-- Auth Modals -->
+    <div id="authModal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+
+            <!-- Login Form -->
+            <div id="loginForm" class="auth-form">
+                <h2>Login</h2>
+                <input type="email" id="loginEmail" placeholder="Email" required>
+                <input type="password" id="loginPassword" placeholder="Password" required>
+                <button id="loginBtn" class="auth-btn">Login</button>
+                <p class="auth-switch">Don't have an account? <span id="showRegister">Register</span></p>
+            </div>
+
+            <!-- Register Form -->
+            <div id="registerForm" class="auth-form hidden">
+                <h2>Register</h2>
+                <input type="text" id="registerUsername" placeholder="Username" required>
+                <input type="email" id="registerEmail" placeholder="Email" required>
+                <input type="password" id="registerPassword" placeholder="Password (min 6 characters)" required>
+                <button id="registerBtn" class="auth-btn">Register</button>
+                <p class="auth-switch">Already have an account? <span id="showLogin">Login</span></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaderboard Modal -->
+    <div id="leaderboardModal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close-leaderboard">&times;</span>
+            <h2>Leaderboard</h2>
+            <div id="leaderboardList" class="leaderboard-list">
+                <p class="loading">Loading...</p>
+            </div>
+        </div>
+    </div>
+
     <div class="game-container">
         <div class="game-header">
             <h1>TETRIS</h1>
+            <!-- User Profile Section -->
+            <div class="user-section">
+                <div id="userProfile" class="user-profile hidden">
+                    <span class="username-display">Welcome, <strong id="displayUsername"></strong></span>
+                    <span class="high-score-display">High Score: <strong id="displayHighScore">0</strong></span>
+                    <button id="logoutBtn" class="small-btn">Logout</button>
+                </div>
+                <div id="guestSection" class="guest-section">
+                    <button id="openLoginBtn" class="small-btn">Login</button>
+                    <button id="viewLeaderboardBtn" class="small-btn">Leaderboard</button>
+                </div>
+            </div>
         </div>
 
         <div class="game-content">
@@ -41,6 +90,7 @@
                     <h2>GAME OVER</h2>
                     <p>Score: <span id="finalScore">0</span></p>
                     <button id="restartBtn">RESTART</button>
+                    <button id="viewLeaderboardGameOver" class="secondary-btn">VIEW LEADERBOARD</button>
                 </div>
             </div>
         </div>
@@ -67,6 +117,22 @@
         </div>
     </div>
 
+    <!-- Firebase SDK -->
+    <script type="module">
+        // Firebase will be initialized in firebase-config.js
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getAuth } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+        import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+
+        // Make Firebase available globally
+        window.firebaseModules = {
+            initializeApp,
+            getAuth,
+            getFirestore
+        };
+    </script>
+    <script src="firebase-config.js"></script>
+    <script src="auth.js"></script>
     <script src="tetris.js"></script>
 </body>
 </html>

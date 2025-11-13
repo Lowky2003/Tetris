@@ -359,6 +359,11 @@ class Game {
         this.gameOver = true;
         document.getElementById('finalScore').textContent = this.score;
         document.getElementById('gameOver').classList.remove('hidden');
+
+        // Save high score to Firebase if user is logged in
+        if (window.authManager) {
+            window.authManager.saveHighScore(this.score);
+        }
     }
 
     restart() {
