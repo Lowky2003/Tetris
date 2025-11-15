@@ -568,6 +568,61 @@ body {
     }
 }
 
+/* Line Clear Effects */
+@keyframes lineClearFlash {
+    0% {
+        opacity: 1;
+        background-color: white;
+    }
+    50% {
+        opacity: 0.8;
+        background-color: #ffff00;
+    }
+    100% {
+        opacity: 0;
+        background-color: white;
+    }
+}
+
+@keyframes lineDissolve {
+    0% {
+        transform: scaleY(1);
+        opacity: 1;
+    }
+    50% {
+        transform: scaleY(1);
+        opacity: 0.5;
+    }
+    100% {
+        transform: scaleY(0);
+        opacity: 0;
+    }
+}
+
+@keyframes particleFade {
+    0% {
+        opacity: 1;
+        transform: translate(0, 0) scale(1);
+    }
+    50% {
+        opacity: 0.8;
+        transform: translate(calc(var(--tx) * 0.7), calc(var(--ty) * 0.7)) scale(1.2);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(var(--tx), var(--ty)) scale(0.3);
+    }
+}
+
+.line-clear-particle {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    pointer-events: none;
+    animation: particleFade 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
 @media (max-width: 768px) {
     #toastContainer {
         top: 10px;
