@@ -23,7 +23,7 @@ class AuthManager {
                 setTimeout(checkFirebase, 100);
             } else {
                 console.error('Firebase failed to initialize after 5 seconds');
-                alert('Failed to connect to Firebase. Please refresh the page.');
+                showToast('Failed to connect to Firebase. Please refresh the page.', 'error', 6000);
             }
         };
         checkFirebase();
@@ -44,7 +44,7 @@ class AuthManager {
             this.setupAuthStateListener();
         } catch (error) {
             console.error('Error loading Firebase modules:', error);
-            alert('Failed to load Firebase modules. Please refresh the page.');
+            showToast('Failed to load Firebase modules. Please refresh the page.', 'error', 6000);
         }
     }
 
@@ -177,17 +177,17 @@ class AuthManager {
         const password = document.getElementById('registerPassword').value;
 
         if (!username || !email || !password) {
-            alert('Please fill in all fields');
+            showToast('Please fill in all fields', 'warning');
             return;
         }
 
         if (password.length < 6) {
-            alert('Password must be at least 6 characters');
+            showToast('Password must be at least 6 characters', 'warning');
             return;
         }
 
         if (!this.authFunctions || !this.firestoreFunctions) {
-            alert('Firebase is still loading. Please wait a moment and try again.');
+            showToast('Firebase is still loading. Please wait a moment and try again.', 'warning');
             return;
         }
 
@@ -198,7 +198,21 @@ class AuthManager {
 
         try {
             const { createUserWithEmailAndPassword, updateProfile } = this.authFunctions;
-            const { doc, setDoc } = this.firestoreFunctions;
+            const { doc, setDoc, collection, query, where, getDocs } = this.firestoreFunctions;
+
+            // Check if username already exists
+            const usernameQuery = query(
+                collection(this.db, 'users'),
+                where('username', '==', username)
+            );
+            const usernameSnapshot = await getDocs(usernameQuery);
+
+            if (!usernameSnapshot.empty) {
+                showToast('Username already taken. Please choose a different username.', 'error');
+                registerBtn.textContent = originalText;
+                registerBtn.disabled = false;
+                return;
+            }
 
             const userCredential = await createUserWithEmailAndPassword(this.auth, email, password);
             await updateProfile(userCredential.user, { displayName: username });
@@ -213,9 +227,10 @@ class AuthManager {
 
             this.closeRegisterModal();
             this.clearForms();
+            showToast('Registration successful! Welcome to Tetris!', 'success');
         } catch (error) {
             console.error('Registration error:', error);
-            alert('Registration failed: ' + error.message);
+            showToast('Registration failed: ' + error.message, 'error');
         } finally {
             registerBtn.textContent = originalText;
             registerBtn.disabled = false;
@@ -227,12 +242,12 @@ class AuthManager {
         const password = document.getElementById('loginPassword').value;
 
         if (!email || !password) {
-            alert('Please fill in all fields');
+            showToast('Please fill in all fields', 'warning');
             return;
         }
 
         if (!this.authFunctions) {
-            alert('Firebase is still loading. Please wait a moment and try again.');
+            showToast('Firebase is still loading. Please wait a moment and try again.', 'warning');
             return;
         }
 
@@ -247,9 +262,10 @@ class AuthManager {
 
             this.closeLoginModal();
             this.clearForms();
+            showToast('Login successful! Welcome back!', 'success');
         } catch (error) {
             console.error('Login error:', error);
-            alert('Login failed: ' + error.message);
+            showToast('Login failed: ' + error.message, 'error');
         } finally {
             loginBtn.textContent = originalText;
             loginBtn.disabled = false;
@@ -268,7 +284,7 @@ class AuthManager {
             window.location.reload();
         } catch (error) {
             console.error('Logout error:', error);
-            alert('Logout failed: ' + error.message);
+            showToast('Logout failed: ' + error.message, 'error');
         }
     }
 

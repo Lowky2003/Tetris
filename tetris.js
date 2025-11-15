@@ -152,13 +152,15 @@ class Game {
         if (this.isStarted) return;
 
         this.isStarted = true;
+        this.gameOver = false; // Make sure game is not over
         this.currentPiece = this.createPiece();
         this.nextPiece = this.createPiece();
         this.drawNext();
         this.lastTime = performance.now();
 
-        // Hide login gate
+        // Hide all gate overlays
         document.getElementById('loginGate').classList.add('hidden');
+        document.getElementById('startGameGate').classList.add('hidden');
 
         requestAnimationFrame((time) => this.update(time));
     }
@@ -385,7 +387,7 @@ class Game {
     restart() {
         // Check if user is logged in
         if (!window.authManager || !window.authManager.currentUser) {
-            alert('Please login to play!');
+            showToast('Please login to play!', 'warning');
             document.getElementById('loginGate').classList.remove('hidden');
             return;
         }

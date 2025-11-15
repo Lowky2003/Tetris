@@ -37,14 +37,18 @@ function initializeFirebase() {
                 console.log('DB:', window.firebaseDB);
             } catch (error) {
                 console.error('Error initializing Firebase:', error);
-                alert('Error initializing Firebase: ' + error.message);
+                if (window.showToast) {
+                    window.showToast('Error initializing Firebase: ' + error.message, 'error', 6000);
+                }
             }
         } else if (attempts < maxAttempts) {
             console.log(`Waiting for Firebase modules... attempt ${attempts}/${maxAttempts}`);
             setTimeout(tryInit, 100);
         } else {
             console.error('Firebase modules failed to load after 3 seconds');
-            alert('Failed to load Firebase. Please check your internet connection and refresh the page.');
+            if (window.showToast) {
+                window.showToast('Failed to load Firebase. Please check your internet connection and refresh the page.', 'error', 6000);
+            }
         }
     };
 
