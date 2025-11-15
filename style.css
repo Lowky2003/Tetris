@@ -332,7 +332,8 @@ body {
     animation: slideIn 0.3s;
 }
 
-.close-modal,
+.close-login-modal,
+.close-register-modal,
 .close-leaderboard {
     position: absolute;
     right: 20px;
@@ -344,7 +345,8 @@ body {
     transition: color 0.2s;
 }
 
-.close-modal:hover,
+.close-login-modal:hover,
+.close-register-modal:hover,
 .close-leaderboard:hover {
     color: #667eea;
 }
@@ -394,6 +396,12 @@ body {
 
 .auth-btn:active {
     transform: translateY(0);
+}
+
+.auth-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
 }
 
 .auth-switch {

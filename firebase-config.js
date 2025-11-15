@@ -17,27 +17,39 @@ let app, auth, db;
 
 // Wait for Firebase modules to be available
 function initializeFirebase() {
-    if (window.firebaseModules) {
-        try {
-            const { initializeApp, getAuth, getFirestore } = window.firebaseModules;
-            app = initializeApp(firebaseConfig);
+    let attempts = 0;
+    const maxAttempts = 30; // Try for 3 seconds
 
-            // Make auth and db available globally
-            window.firebaseAuth = getAuth(app);
-            window.firebaseDB = getFirestore(app);
+    const tryInit = () => {
+        attempts++;
 
-            console.log('Firebase initialized successfully');
-        } catch (error) {
-            console.error('Error initializing Firebase:', error);
-            console.log('Please update firebase-config.js with your Firebase credentials');
+        if (window.firebaseModules) {
+            try {
+                const { initializeApp, getAuth, getFirestore } = window.firebaseModules;
+                app = initializeApp(firebaseConfig);
+
+                // Make auth and db available globally
+                window.firebaseAuth = getAuth(app);
+                window.firebaseDB = getFirestore(app);
+
+                console.log('Firebase initialized successfully');
+                console.log('Auth:', window.firebaseAuth);
+                console.log('DB:', window.firebaseDB);
+            } catch (error) {
+                console.error('Error initializing Firebase:', error);
+                alert('Error initializing Firebase: ' + error.message);
+            }
+        } else if (attempts < maxAttempts) {
+            console.log(`Waiting for Firebase modules... attempt ${attempts}/${maxAttempts}`);
+            setTimeout(tryInit, 100);
+        } else {
+            console.error('Firebase modules failed to load after 3 seconds');
+            alert('Failed to load Firebase. Please check your internet connection and refresh the page.');
         }
-    }
+    };
+
+    tryInit();
 }
 
-// Try to initialize immediately or wait for modules
-if (window.firebaseModules) {
-    initializeFirebase();
-} else {
-    // Wait for modules to load
-    setTimeout(initializeFirebase, 100);
-}
+// Start initialization
+initializeFirebase();

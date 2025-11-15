@@ -408,6 +408,9 @@ class Game {
         this.updateScore();
         this.drawNext();
         this.lastTime = performance.now();
+
+        // Restart the game loop
+        requestAnimationFrame((time) => this.update(time));
     }
 
     update(time = 0) {
