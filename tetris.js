@@ -112,6 +112,7 @@ class Game {
         this.level = 1;
         this.gameOver = false;
         this.paused = false;
+        this.isStarted = false;
 
         this.currentPiece = null;
         this.nextPiece = null;
@@ -128,11 +129,8 @@ class Game {
     }
 
     init() {
-        this.currentPiece = this.createPiece();
-        this.nextPiece = this.createPiece();
         this.updateScore();
         this.draw();
-        this.drawNext();
 
         document.getElementById('restartBtn').addEventListener('click', () => this.restart());
         document.addEventListener('keydown', (e) => this.handleKeyPress(e));
@@ -145,6 +143,22 @@ class Game {
         document.getElementById('rotateRightBtn').addEventListener('click', () => this.rotatePiece());
         document.getElementById('dropBtn').addEventListener('click', () => this.hardDrop());
         document.getElementById('pauseBtn').addEventListener('click', () => this.togglePause());
+
+        // Show login gate initially
+        document.getElementById('loginGate').classList.remove('hidden');
+    }
+
+    startGame() {
+        if (this.isStarted) return;
+
+        this.isStarted = true;
+        this.currentPiece = this.createPiece();
+        this.nextPiece = this.createPiece();
+        this.drawNext();
+        this.lastTime = performance.now();
+
+        // Hide login gate
+        document.getElementById('loginGate').classList.add('hidden');
 
         requestAnimationFrame((time) => this.update(time));
     }
@@ -162,7 +176,7 @@ class Game {
     }
 
     handleKeyPress(e) {
-        if (this.gameOver) return;
+        if (!this.isStarted || this.gameOver) return;
 
         switch(e.key) {
             case 'ArrowLeft':
@@ -208,6 +222,8 @@ class Game {
     }
 
     movePiece(dx, dy) {
+        if (!this.isStarted) return;
+
         this.currentPiece.x += dx;
         this.currentPiece.y += dy;
 
@@ -367,6 +383,13 @@ class Game {
     }
 
     restart() {
+        // Check if user is logged in
+        if (!window.authManager || !window.authManager.currentUser) {
+            alert('Please login to play!');
+            document.getElementById('loginGate').classList.remove('hidden');
+            return;
+        }
+
         this.board = this.createBoard();
         this.score = 0;
         this.lines = 0;
@@ -375,11 +398,13 @@ class Game {
         this.paused = false;
         this.dropInterval = 1000;
         this.dropCounter = 0;
+        this.isStarted = true;
 
         this.currentPiece = this.createPiece();
         this.nextPiece = this.createPiece();
 
         document.getElementById('gameOver').classList.add('hidden');
+        document.getElementById('loginGate').classList.add('hidden');
         this.updateScore();
         this.drawNext();
         this.lastTime = performance.now();
@@ -507,5 +532,8 @@ class Game {
     }
 }
 
-// Start the game
+// Create the game instance (but don't start until user logs in)
 const game = new Game();
+
+// Make game available globally so auth manager can start it
+window.game = game;

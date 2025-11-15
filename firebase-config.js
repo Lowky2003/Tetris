@@ -2,15 +2,16 @@
 // IMPORTANT: Replace these values with your own Firebase project credentials
 // Get these from: Firebase Console > Project Settings > General > Your apps > Firebase SDK snippet
 
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_PROJECT_ID.appspot.com",
-    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-    appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyB5yT1PxEjKeweyTw_6rj8On9j0JeRAnzk",
+  authDomain: "tetris-23d22.firebaseapp.com",
+  projectId: "tetris-23d22",
+  storageBucket: "tetris-23d22.firebasestorage.app",
+  messagingSenderId: "400627508566",
+  appId: "1:400627508566:web:5b9ba899e5a8866b6de2f7",
+  measurementId: "G-Y0EDP30LP8"
 };
-
 // Initialize Firebase (will be called from index.html after modules load)
 let app, auth, db;
 

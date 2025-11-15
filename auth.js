@@ -39,6 +39,7 @@ class AuthManager {
     initEventListeners() {
         // Modal controls
         document.getElementById('openLoginBtn').addEventListener('click', () => this.openAuthModal());
+        document.getElementById('loginToPlayBtn').addEventListener('click', () => this.openAuthModal());
         document.getElementById('viewLeaderboardBtn').addEventListener('click', () => this.openLeaderboard());
         document.getElementById('viewLeaderboardGameOver').addEventListener('click', () => this.openLeaderboard());
         document.querySelector('.close-modal').addEventListener('click', () => this.closeAuthModal());
@@ -81,11 +82,28 @@ class AuthManager {
                 this.currentUser = user;
                 await this.loadUserData(user.uid);
                 this.showUserProfile();
+                this.startGameIfReady();
             } else {
                 this.currentUser = null;
                 this.showGuestSection();
+                this.stopGame();
             }
         });
+    }
+
+    startGameIfReady() {
+        // Start the game if user is logged in and game is available
+        if (this.currentUser && window.game) {
+            window.game.startGame();
+        }
+    }
+
+    stopGame() {
+        // Show login gate if user logs out
+        if (window.game) {
+            window.game.isStarted = false;
+            document.getElementById('loginGate').classList.remove('hidden');
+        }
     }
 
     async loadUserData(uid) {

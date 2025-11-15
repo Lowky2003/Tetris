@@ -86,6 +86,16 @@
 
             <div class="game-board">
                 <canvas id="gameCanvas" width="300" height="600"></canvas>
+
+                <!-- Login Gate Overlay -->
+                <div id="loginGate" class="login-gate">
+                    <div class="login-gate-content">
+                        <h2>Welcome to Tetris!</h2>
+                        <p>Please login to start playing</p>
+                        <button id="loginToPlayBtn" class="auth-btn">Login to Play</button>
+                    </div>
+                </div>
+
                 <div id="gameOver" class="game-over hidden">
                     <h2>GAME OVER</h2>
                     <p>Score: <span id="finalScore">0</span></p>
