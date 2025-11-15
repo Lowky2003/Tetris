@@ -50,6 +50,18 @@
         </div>
     </div>
 
+    <!-- Restart Confirmation Modal -->
+    <div id="restartConfirmModal" class="modal hidden">
+        <div class="modal-content">
+            <h2>Restart Game?</h2>
+            <p style="margin: 20px 0; color: #666;">Are you sure you want to restart? Your current progress will be lost.</p>
+            <div style="display: flex; gap: 10px; justify-content: center;">
+                <button id="confirmRestartBtn" class="auth-btn">Yes, Restart</button>
+                <button id="cancelRestartBtn" class="secondary-btn">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <div class="game-container">
         <div class="game-header">
             <h1>TETRIS</h1>
@@ -72,7 +84,7 @@
             <div class="side-panel">
                 <div class="info-box">
                     <h3>NEXT</h3>
-                    <canvas id="nextCanvas" width="120" height="120"></canvas>
+                    <canvas id="nextCanvas" width="140" height="140"></canvas>
                 </div>
 
                 <div class="info-box">
@@ -92,7 +104,7 @@
             </div>
 
             <div class="game-board">
-                <canvas id="gameCanvas" width="300" height="600"></canvas>
+                <canvas id="gameCanvas" width="350" height="700"></canvas>
 
                 <!-- Login Gate Overlay -->
                 <div id="loginGate" class="login-gate">
@@ -139,7 +151,7 @@
 
         <div class="controls">
             <h3>KEYBOARD CONTROLS</h3>
-            <p><strong>←/→:</strong> Move | <strong>↑/X:</strong> Rotate CW | <strong>Z:</strong> Rotate CCW | <strong>↓:</strong> Soft Drop | <strong>Space:</strong> Hard Drop | <strong>P:</strong> Pause</p>
+            <p><strong>←/→:</strong> Move | <strong>↑/X:</strong> Rotate CW | <strong>Z:</strong> Rotate CCW | <strong>↓:</strong> Soft Drop | <strong>Space:</strong> Hard Drop | <strong>P:</strong> Pause | <strong>R:</strong> Restart</p>
         </div>
     </div>
 

@@ -1,7 +1,7 @@
 // Game constants
 const COLS = 10;
 const ROWS = 20;
-const BLOCK_SIZE = 30;
+const BLOCK_SIZE = 35; // Increased from 30 to 35
 const COLORS = {
     'I': '#00f0f0',
     'O': '#f0f000',
@@ -122,7 +122,154 @@ class Game {
         this.lastTime = 0;
         this.isAnimating = false; // Lock during line clear animation
 
+        // Audio context for sound effects
+        this.audioContext = null;
+        this.initAudio();
+
         this.init();
+    }
+
+    initAudio() {
+        try {
+            // Create audio context (lazy initialization on first user interaction)
+            this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        } catch (e) {
+            console.log('Web Audio API not supported');
+        }
+    }
+
+    playLineClearSound(linesCleared) {
+        if (!this.audioContext) return;
+
+        // Resume audio context if it's suspended (required by some browsers)
+        if (this.audioContext.state === 'suspended') {
+            this.audioContext.resume();
+        }
+
+        const now = this.audioContext.currentTime;
+
+        // Create different sounds based on number of lines cleared
+        if (linesCleared === 1) {
+            this.playSingleLineClear(now);
+        } else if (linesCleared === 2) {
+            this.playDoubleLineClear(now);
+        } else if (linesCleared === 3) {
+            this.playTripleLineClear(now);
+        } else if (linesCleared === 4) {
+            this.playTetrisSound(now);
+        }
+    }
+
+    playSingleLineClear(now) {
+        // Glass breaking / block smashing sound - single impact
+        this.createBreakingSound(now, 1);
+    }
+
+    playDoubleLineClear(now) {
+        // Two breaking sounds
+        this.createBreakingSound(now, 2);
+    }
+
+    playTripleLineClear(now) {
+        // Three breaking sounds
+        this.createBreakingSound(now, 3);
+    }
+
+    playTetrisSound(now) {
+        // Big explosion/smashing sound for 4 lines!
+        this.createBreakingSound(now, 4);
+    }
+
+    createBreakingSound(now, intensity) {
+        // Heavy impact/thud sound - the initial hit
+        const impact = this.audioContext.createOscillator();
+        const impactGain = this.audioContext.createGain();
+
+        impact.connect(impactGain);
+        impactGain.connect(this.audioContext.destination);
+
+        impact.type = 'sine';
+        impact.frequency.setValueAtTime(150, now);
+        impact.frequency.exponentialRampToValueAtTime(50, now + 0.1);
+
+        impactGain.gain.setValueAtTime(0.5 * intensity * 0.25, now);
+        impactGain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+
+        impact.start(now);
+        impact.stop(now + 0.15);
+
+        // Deep bass rumble - the crushing force
+        const crush = this.audioContext.createOscillator();
+        const crushGain = this.audioContext.createGain();
+
+        crush.connect(crushGain);
+        crushGain.connect(this.audioContext.destination);
+
+        crush.type = 'triangle';
+        crush.frequency.setValueAtTime(60 + intensity * 10, now);
+        crush.frequency.linearRampToValueAtTime(40, now + 0.25);
+
+        crushGain.gain.setValueAtTime(0.4 * intensity * 0.25, now);
+        crushGain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+
+        crush.start(now);
+        crush.stop(now + 0.3);
+
+        // Create crumbling noise
+        const bufferSize = this.audioContext.sampleRate * 0.4;
+        const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
+        const output = buffer.getChannelData(0);
+
+        // Generate heavy crumbling/crushing noise
+        for (let i = 0; i < bufferSize; i++) {
+            const decay = Math.pow(1 - (i / bufferSize), 1.5);
+            // Mix of noise for heavy, chunky sound
+            const noise1 = Math.random() * 2 - 1;
+            const noise2 = (Math.random() * 2 - 1) * 0.5;
+            output[i] = (noise1 + noise2) * decay;
+        }
+
+        const crumble = this.audioContext.createBufferSource();
+        crumble.buffer = buffer;
+
+        const crumbleGain = this.audioContext.createGain();
+        const crumbleFilter = this.audioContext.createBiquadFilter();
+
+        crumble.connect(crumbleFilter);
+        crumbleFilter.connect(crumbleGain);
+        crumbleGain.connect(this.audioContext.destination);
+
+        // Lower frequency for heavy blocks
+        crumbleFilter.type = 'lowpass';
+        crumbleFilter.frequency.setValueAtTime(600, now);
+        crumbleFilter.frequency.exponentialRampToValueAtTime(200, now + 0.3);
+        crumbleFilter.Q.setValueAtTime(2, now);
+
+        const crumbleVolume = 0.3 * intensity * 0.25;
+        crumbleGain.gain.setValueAtTime(crumbleVolume, now);
+        crumbleGain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+
+        crumble.start(now + 0.02); // Slight delay after impact
+
+        // Multiple heavy chunks falling - brick debris
+        for (let i = 0; i < intensity; i++) {
+            const chunk = this.audioContext.createOscillator();
+            const chunkGain = this.audioContext.createGain();
+
+            chunk.connect(chunkGain);
+            chunkGain.connect(this.audioContext.destination);
+
+            chunk.type = 'square';
+            const startFreq = 200 - i * 30;
+            chunk.frequency.setValueAtTime(startFreq, now + i * 0.06);
+            chunk.frequency.exponentialRampToValueAtTime(startFreq * 0.3, now + i * 0.06 + 0.12);
+
+            chunkGain.gain.setValueAtTime(0.15, now + i * 0.06);
+            chunkGain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.06 + 0.12);
+
+            chunk.start(now + 0.05 + i * 0.06);
+            chunk.stop(now + 0.05 + i * 0.06 + 0.12);
+        }
     }
 
     createBoard() {
@@ -144,6 +291,10 @@ class Game {
         document.getElementById('rotateRightBtn').addEventListener('click', () => this.rotatePiece());
         document.getElementById('dropBtn').addEventListener('click', () => this.hardDrop());
         document.getElementById('pauseBtn').addEventListener('click', () => this.togglePause());
+
+        // Restart confirmation modal buttons
+        document.getElementById('confirmRestartBtn').addEventListener('click', () => this.confirmRestart());
+        document.getElementById('cancelRestartBtn').addEventListener('click', () => this.cancelRestart());
 
         // Show login gate initially
         document.getElementById('loginGate').classList.remove('hidden');
@@ -179,6 +330,15 @@ class Game {
     }
 
     handleKeyPress(e) {
+        // Allow restart at any time during gameplay - show confirmation
+        if (e.key === 'r' || e.key === 'R') {
+            if (this.isStarted && !this.gameOver) {
+                e.preventDefault();
+                this.showRestartConfirmation();
+                return;
+            }
+        }
+
         if (!this.isStarted || this.gameOver || this.isAnimating) return;
 
         // Allow pause toggle even when paused
@@ -227,6 +387,33 @@ class Game {
         if (!this.paused) {
             this.lastTime = performance.now();
         }
+    }
+
+    showRestartConfirmation() {
+        // Pause the game while showing confirmation
+        if (!this.paused) {
+            this.paused = true;
+        }
+
+        // Show confirmation modal
+        document.getElementById('restartConfirmModal').classList.remove('hidden');
+    }
+
+    confirmRestart() {
+        // Hide modal
+        document.getElementById('restartConfirmModal').classList.add('hidden');
+
+        // Restart the game
+        this.restart();
+    }
+
+    cancelRestart() {
+        // Hide modal
+        document.getElementById('restartConfirmModal').classList.add('hidden');
+
+        // Resume the game
+        this.paused = false;
+        this.lastTime = performance.now();
     }
 
     movePiece(dx, dy) {
@@ -366,6 +553,9 @@ class Game {
         if (linesToClear.length > 0) {
             // Lock input during animation
             this.isAnimating = true;
+
+            // Play sound effect based on number of lines cleared
+            this.playLineClearSound(linesToClear.length);
 
             // Animate the line clear effect
             this.animateLineClear(linesToClear);
@@ -626,7 +816,7 @@ class Game {
     }
 
     drawNext() {
-        const size = 30;
+        const size = 35; // Updated to match BLOCK_SIZE
         // Clear the canvas completely
         this.nextCtx.clearRect(0, 0, this.nextCanvas.width, this.nextCanvas.height);
         // Fill with background color
