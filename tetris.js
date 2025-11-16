@@ -115,7 +115,7 @@ class Game {
         this.isStarted = false;
 
         this.currentPiece = null;
-        this.nextPiece = null;
+        this.nextPieces = []; // Array of next 3 pieces
 
         this.dropCounter = 0;
         this.dropInterval = 1000;
@@ -126,6 +126,11 @@ class Game {
         this.audioContext = null;
         this.initAudio();
 
+        // Background music
+        this.musicEnabled = true; // Default: music is ON
+        this.musicOscillators = [];
+        this.musicGainNode = null;
+
         this.init();
     }
 
@@ -135,6 +140,130 @@ class Game {
             this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
         } catch (e) {
             console.log('Web Audio API not supported');
+        }
+    }
+
+    startBackgroundMusic() {
+        if (!this.audioContext || !this.musicEnabled) return;
+
+        // Resume audio context if suspended
+        if (this.audioContext.state === 'suspended') {
+            this.audioContext.resume();
+        }
+
+        // Stop any existing music
+        this.stopBackgroundMusic();
+
+        // Create gain node for music volume control
+        this.musicGainNode = this.audioContext.createGain();
+        this.musicGainNode.gain.setValueAtTime(0.15, this.audioContext.currentTime); // Low volume for background
+        this.musicGainNode.connect(this.audioContext.destination);
+
+        // Tetris theme melody (simplified version)
+        // Notes: E, B, C, D, C, B, A, A, C, E, D, C, B, C, D, E, C, A, A
+        const melody = [
+            { freq: 659.25, duration: 0.4 }, // E5
+            { freq: 493.88, duration: 0.2 }, // B4
+            { freq: 523.25, duration: 0.2 }, // C5
+            { freq: 587.33, duration: 0.4 }, // D5
+            { freq: 523.25, duration: 0.2 }, // C5
+            { freq: 493.88, duration: 0.2 }, // B4
+            { freq: 440.00, duration: 0.4 }, // A4
+            { freq: 440.00, duration: 0.2 }, // A4
+            { freq: 523.25, duration: 0.2 }, // C5
+            { freq: 659.25, duration: 0.4 }, // E5
+            { freq: 587.33, duration: 0.2 }, // D5
+            { freq: 523.25, duration: 0.2 }, // C5
+            { freq: 493.88, duration: 0.6 }, // B4
+            { freq: 523.25, duration: 0.2 }, // C5
+            { freq: 587.33, duration: 0.4 }, // D5
+            { freq: 659.25, duration: 0.4 }, // E5
+            { freq: 523.25, duration: 0.4 }, // C5
+            { freq: 440.00, duration: 0.4 }, // A4
+            { freq: 440.00, duration: 0.4 }, // A4
+        ];
+
+        let time = this.audioContext.currentTime;
+        const totalDuration = melody.reduce((sum, note) => sum + note.duration, 0);
+
+        // Function to play the melody loop
+        const playMelody = (startTime) => {
+            let currentTime = startTime;
+
+            melody.forEach(note => {
+                const osc = this.audioContext.createOscillator();
+                const noteGain = this.audioContext.createGain();
+
+                osc.connect(noteGain);
+                noteGain.connect(this.musicGainNode);
+
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(note.freq, currentTime);
+
+                // Envelope for smoother notes
+                noteGain.gain.setValueAtTime(0, currentTime);
+                noteGain.gain.linearRampToValueAtTime(0.3, currentTime + 0.01);
+                noteGain.gain.linearRampToValueAtTime(0.2, currentTime + note.duration * 0.7);
+                noteGain.gain.linearRampToValueAtTime(0, currentTime + note.duration);
+
+                osc.start(currentTime);
+                osc.stop(currentTime + note.duration);
+
+                this.musicOscillators.push(osc);
+
+                currentTime += note.duration;
+            });
+
+            return currentTime;
+        };
+
+        // Play the melody and schedule it to loop
+        const scheduleLoop = (startTime) => {
+            const nextLoopTime = playMelody(startTime);
+
+            // Schedule next loop
+            if (this.musicEnabled) {
+                setTimeout(() => {
+                    if (this.musicEnabled && !this.gameOver) {
+                        scheduleLoop(this.audioContext.currentTime);
+                    }
+                }, (nextLoopTime - this.audioContext.currentTime) * 1000);
+            }
+        };
+
+        scheduleLoop(time);
+    }
+
+    stopBackgroundMusic() {
+        // Stop all music oscillators
+        this.musicOscillators.forEach(osc => {
+            try {
+                osc.stop();
+            } catch (e) {
+                // Oscillator might already be stopped
+            }
+        });
+        this.musicOscillators = [];
+
+        // Disconnect gain node
+        if (this.musicGainNode) {
+            this.musicGainNode.disconnect();
+            this.musicGainNode = null;
+        }
+    }
+
+    toggleMusic() {
+        this.musicEnabled = !this.musicEnabled;
+        const musicBtn = document.getElementById('musicToggleBtn');
+
+        if (this.musicEnabled) {
+            musicBtn.classList.remove('muted');
+            if (this.isStarted && !this.gameOver) {
+                this.startBackgroundMusic();
+            }
+        } else {
+            musicBtn.classList.add('muted');
+            this.stopBackgroundMusic();
         }
     }
 
@@ -296,6 +425,9 @@ class Game {
         document.getElementById('confirmRestartBtn').addEventListener('click', () => this.confirmRestart());
         document.getElementById('cancelRestartBtn').addEventListener('click', () => this.cancelRestart());
 
+        // Music toggle button
+        document.getElementById('musicToggleBtn').addEventListener('click', () => this.toggleMusic());
+
         // Show login gate initially
         document.getElementById('loginGate').classList.remove('hidden');
     }
@@ -306,13 +438,23 @@ class Game {
         this.isStarted = true;
         this.gameOver = false; // Make sure game is not over
         this.currentPiece = this.createPiece();
-        this.nextPiece = this.createPiece();
+        // Initialize the queue with 3 pieces
+        this.nextPieces = [
+            this.createPiece(),
+            this.createPiece(),
+            this.createPiece()
+        ];
         this.drawNext();
         this.lastTime = performance.now();
 
         // Hide all gate overlays
         document.getElementById('loginGate').classList.add('hidden');
         document.getElementById('startGameGate').classList.add('hidden');
+
+        // Start background music (default on)
+        if (this.musicEnabled) {
+            this.startBackgroundMusic();
+        }
 
         requestAnimationFrame((time) => this.update(time));
     }
@@ -386,6 +528,15 @@ class Game {
         this.paused = !this.paused;
         if (!this.paused) {
             this.lastTime = performance.now();
+            // Resume music when unpausing
+            if (this.musicEnabled && this.audioContext && this.audioContext.state === 'suspended') {
+                this.audioContext.resume();
+            }
+        } else {
+            // Pause music when pausing
+            if (this.audioContext && this.audioContext.state === 'running') {
+                this.audioContext.suspend();
+            }
         }
     }
 
@@ -429,8 +580,10 @@ class Game {
             if (dy > 0) {
                 this.merge();
                 this.clearLines();
-                this.currentPiece = this.nextPiece;
-                this.nextPiece = this.createPiece();
+                // Get the next piece from the queue and shift the queue
+                this.currentPiece = this.nextPieces.shift();
+                // Add a new piece to the end of the queue
+                this.nextPieces.push(this.createPiece());
                 this.drawNext();
 
                 if (this.collision()) {
@@ -557,6 +710,9 @@ class Game {
             // Play sound effect based on number of lines cleared
             this.playLineClearSound(linesToClear.length);
 
+            // Trigger screen shake based on lines cleared
+            this.triggerScreenShake(linesToClear.length);
+
             // Animate the line clear effect
             this.animateLineClear(linesToClear);
 
@@ -586,6 +742,36 @@ class Game {
                 // Unlock input after animation
                 this.isAnimating = false;
             }, 400); // Wait for animation to complete
+        }
+    }
+
+    triggerScreenShake(linesCleared) {
+        const gameBoard = document.querySelector('.game-board');
+
+        // Remove any existing shake classes
+        gameBoard.classList.remove('shake-small', 'shake-medium', 'shake-large');
+
+        // Determine shake intensity based on lines cleared
+        let shakeClass;
+        if (linesCleared === 1) {
+            shakeClass = 'shake-small';
+        } else if (linesCleared === 2) {
+            shakeClass = 'shake-medium';
+        } else if (linesCleared === 3) {
+            shakeClass = 'shake-medium';
+        } else if (linesCleared === 4) {
+            shakeClass = 'shake-large'; // Big shake for Tetris!
+        }
+
+        // Add the shake class
+        if (shakeClass) {
+            gameBoard.classList.add(shakeClass);
+
+            // Remove the class after animation completes
+            const duration = shakeClass === 'shake-large' ? 600 : shakeClass === 'shake-medium' ? 400 : 300;
+            setTimeout(() => {
+                gameBoard.classList.remove(shakeClass);
+            }, duration);
         }
     }
 
@@ -685,6 +871,9 @@ class Game {
         document.getElementById('finalScore').textContent = this.score;
         document.getElementById('gameOver').classList.remove('hidden');
 
+        // Stop background music when game ends
+        this.stopBackgroundMusic();
+
         // Save high score to Firebase if user is logged in
         if (window.authManager) {
             window.authManager.saveHighScore(this.score);
@@ -710,13 +899,22 @@ class Game {
         this.isStarted = true;
 
         this.currentPiece = this.createPiece();
-        this.nextPiece = this.createPiece();
+        this.nextPieces = [
+            this.createPiece(),
+            this.createPiece(),
+            this.createPiece()
+        ];
 
         document.getElementById('gameOver').classList.add('hidden');
         document.getElementById('loginGate').classList.add('hidden');
         this.updateScore();
         this.drawNext();
         this.lastTime = performance.now();
+
+        // Restart background music if enabled
+        if (this.musicEnabled) {
+            this.startBackgroundMusic();
+        }
 
         // Restart the game loop
         requestAnimationFrame((time) => this.update(time));
@@ -773,6 +971,23 @@ class Game {
             }
         }
 
+        // Draw ghost piece (shadow showing where piece will land)
+        if (this.currentPiece) {
+            const ghostY = this.getGhostPieceY();
+            const shape = this.currentPiece.shape;
+            for (let y = 0; y < shape.length; y++) {
+                for (let x = 0; x < shape[y].length; x++) {
+                    if (shape[y][x]) {
+                        this.drawGhostBlock(
+                            this.currentPiece.x + x,
+                            ghostY + y,
+                            COLORS[this.currentPiece.type]
+                        );
+                    }
+                }
+            }
+        }
+
         // Draw current piece
         if (this.currentPiece) {
             const shape = this.currentPiece.shape;
@@ -801,6 +1016,44 @@ class Game {
         }
     }
 
+    getGhostPieceY() {
+        // Calculate where the current piece will land
+        if (!this.currentPiece) return 0;
+
+        let ghostY = this.currentPiece.y;
+        const originalY = this.currentPiece.y;
+
+        // Move piece down until collision
+        while (!this.collision()) {
+            this.currentPiece.y++;
+        }
+        ghostY = this.currentPiece.y - 1;
+
+        // Restore original position
+        this.currentPiece.y = originalY;
+
+        return ghostY;
+    }
+
+    drawGhostBlock(x, y, color) {
+        // Draw semi-transparent outline of where piece will land
+        // Extract RGB from hex color
+        const r = parseInt(color.slice(1, 3), 16);
+        const g = parseInt(color.slice(3, 5), 16);
+        const b = parseInt(color.slice(5, 7), 16);
+
+        // Draw with low opacity fill
+        this.ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.15)`;
+        this.ctx.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+
+        // Draw border with dashed line effect
+        this.ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.5)`;
+        this.ctx.lineWidth = 2;
+        this.ctx.setLineDash([4, 4]);
+        this.ctx.strokeRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+        this.ctx.setLineDash([]); // Reset dash
+    }
+
     drawBlock(x, y, color) {
         this.ctx.fillStyle = color;
         this.ctx.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
@@ -816,31 +1069,57 @@ class Game {
     }
 
     drawNext() {
-        const size = 35; // Updated to match BLOCK_SIZE
+        const size = 20; // Smaller size to fit 3 pieces
         // Clear the canvas completely
         this.nextCtx.clearRect(0, 0, this.nextCanvas.width, this.nextCanvas.height);
         // Fill with background color
         this.nextCtx.fillStyle = 'rgba(255, 255, 255, 0.1)';
         this.nextCtx.fillRect(0, 0, this.nextCanvas.width, this.nextCanvas.height);
 
-        if (this.nextPiece) {
-            const shape = this.nextPiece.shape;
-            const offsetX = (this.nextCanvas.width - shape[0].length * size) / 2;
-            const offsetY = (this.nextCanvas.height - shape.length * size) / 2;
+        if (this.nextPieces && this.nextPieces.length > 0) {
+            const sectionHeight = this.nextCanvas.height / 3;
 
-            for (let y = 0; y < shape.length; y++) {
-                for (let x = 0; x < shape[y].length; x++) {
-                    if (shape[y][x]) {
-                        this.nextCtx.fillStyle = COLORS[this.nextPiece.type];
-                        this.nextCtx.fillRect(offsetX + x * size, offsetY + y * size, size, size);
+            // Draw each of the 3 next pieces
+            for (let i = 0; i < 3 && i < this.nextPieces.length; i++) {
+                const piece = this.nextPieces[i];
+                const shape = piece.shape;
+                const sectionY = i * sectionHeight;
 
-                        this.nextCtx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
-                        this.nextCtx.lineWidth = 1;
-                        this.nextCtx.strokeRect(offsetX + x * size, offsetY + y * size, size, size);
+                const offsetX = (this.nextCanvas.width - shape[0].length * size) / 2;
+                const offsetY = sectionY + (sectionHeight - shape.length * size) / 2;
 
-                        this.nextCtx.fillStyle = 'rgba(255, 255, 255, 0.2)';
-                        this.nextCtx.fillRect(offsetX + x * size, offsetY + y * size, size / 2, size / 2);
+                // Draw piece with slight transparency for pieces further down the queue
+                const opacity = 1 - (i * 0.2);
+
+                for (let y = 0; y < shape.length; y++) {
+                    for (let x = 0; x < shape[y].length; x++) {
+                        if (shape[y][x]) {
+                            // Draw main block with opacity
+                            const color = COLORS[piece.type];
+                            const r = parseInt(color.slice(1, 3), 16);
+                            const g = parseInt(color.slice(3, 5), 16);
+                            const b = parseInt(color.slice(5, 7), 16);
+                            this.nextCtx.fillStyle = `rgba(${r}, ${g}, ${b}, ${opacity})`;
+                            this.nextCtx.fillRect(offsetX + x * size, offsetY + y * size, size, size);
+
+                            this.nextCtx.strokeStyle = `rgba(0, 0, 0, ${0.3 * opacity})`;
+                            this.nextCtx.lineWidth = 1;
+                            this.nextCtx.strokeRect(offsetX + x * size, offsetY + y * size, size, size);
+
+                            this.nextCtx.fillStyle = `rgba(255, 255, 255, ${0.2 * opacity})`;
+                            this.nextCtx.fillRect(offsetX + x * size, offsetY + y * size, size / 2, size / 2);
+                        }
                     }
+                }
+
+                // Draw separator line between pieces (except after last piece)
+                if (i < 2) {
+                    this.nextCtx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+                    this.nextCtx.lineWidth = 1;
+                    this.nextCtx.beginPath();
+                    this.nextCtx.moveTo(10, sectionY + sectionHeight);
+                    this.nextCtx.lineTo(this.nextCanvas.width - 10, sectionY + sectionHeight);
+                    this.nextCtx.stroke();
                 }
             }
         }
