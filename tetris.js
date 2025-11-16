@@ -1,7 +1,7 @@
 // Game constants
 const COLS = 10;
 const ROWS = 20;
-const BLOCK_SIZE = 35; // Increased from 30 to 35
+const BLOCK_SIZE = 40; // Increased for better visibility
 const COLORS = {
     'I': '#00f0f0',
     'O': '#f0f000',
@@ -105,6 +105,8 @@ class Game {
         this.ctx = this.canvas.getContext('2d');
         this.nextCanvas = document.getElementById('nextCanvas');
         this.nextCtx = this.nextCanvas.getContext('2d');
+        this.holdCanvas = document.getElementById('holdCanvas');
+        this.holdCtx = this.holdCanvas.getContext('2d');
 
         this.board = this.createBoard();
         this.score = 0;
@@ -116,11 +118,34 @@ class Game {
 
         this.currentPiece = null;
         this.nextPieces = []; // Array of next 3 pieces
+        this.heldPiece = null; // Piece being held
+        this.canHold = true; // Can only hold once per piece drop
+        this.holdUsesLeft = 3; // Number of holds remaining
+
+        // Undo system
+        this.lastBoardState = null; // Board state before last piece placement
+        this.lastPlacedPiece = null; // The piece that was just placed
+        this.lastCurrentPiece = null; // The current piece before placement
+        this.lastNextPieces = null; // Next pieces queue before placement
+        this.lastScore = 0;
+        this.lastLines = 0;
+        this.lastLevel = 1;
+        this.undoUsesLeft = 3; // Number of undos remaining
 
         this.dropCounter = 0;
         this.dropInterval = 1000;
         this.lastTime = 0;
         this.isAnimating = false; // Lock during line clear animation
+
+        // Auto-repeat for held keys
+        this.keysPressed = {};
+        this.keyRepeatTimers = {};
+        this.keyRepeatInterval = 50; // Milliseconds between repeats when holding
+        this.keyRepeatDelay = 150; // Initial delay before repeating starts
+
+        // Combo system
+        this.combo = 0; // Current combo count
+        this.maxCombo = 0; // Highest combo in this game
 
         // Audio context for sound effects
         this.audioContext = null;
@@ -410,12 +435,20 @@ class Game {
         this.draw();
 
         document.getElementById('restartBtn').addEventListener('click', () => this.restart());
-        document.addEventListener('keydown', (e) => this.handleKeyPress(e));
+        document.addEventListener('keydown', (e) => this.handleKeyDown(e));
+        document.addEventListener('keyup', (e) => this.handleKeyUp(e));
 
-        // Mobile control buttons
-        document.getElementById('leftBtn').addEventListener('click', () => this.movePiece(-1, 0));
-        document.getElementById('rightBtn').addEventListener('click', () => this.movePiece(1, 0));
-        document.getElementById('downBtn').addEventListener('click', () => this.movePiece(0, 1));
+        // Prevent arrow keys and space from scrolling the page
+        window.addEventListener('keydown', (e) => {
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
+                e.preventDefault();
+            }
+        }, { passive: false });
+
+        // Mobile control buttons with hold support
+        this.setupButtonHold('leftBtn', () => this.movePiece(-1, 0));
+        this.setupButtonHold('rightBtn', () => this.movePiece(1, 0));
+        this.setupButtonHold('downBtn', () => this.movePiece(0, 1));
         document.getElementById('rotateLeftBtn').addEventListener('click', () => this.rotatePieceCounterClockwise());
         document.getElementById('rotateRightBtn').addEventListener('click', () => this.rotatePiece());
         document.getElementById('dropBtn').addEventListener('click', () => this.hardDrop());
@@ -427,6 +460,16 @@ class Game {
 
         // Music toggle button
         document.getElementById('musicToggleBtn').addEventListener('click', () => this.toggleMusic());
+
+        // Hold and Retrieve buttons
+        document.getElementById('holdBtn').addEventListener('click', () => this.holdPiece());
+        document.getElementById('retrieveBtn').addEventListener('click', () => this.retrieveHeldPiece());
+
+        // Undo button
+        const undoBtn = document.getElementById('undoBtn');
+        if (undoBtn) {
+            undoBtn.addEventListener('click', () => this.undoLastDrop());
+        }
 
         // Show login gate initially
         document.getElementById('loginGate').classList.remove('hidden');
@@ -471,7 +514,10 @@ class Game {
         };
     }
 
-    handleKeyPress(e) {
+    handleKeyDown(e) {
+        // Prevent key repeat from browser (we'll handle it ourselves)
+        if (e.repeat) return;
+
         // Allow restart at any time during gameplay - show confirmation
         if (e.key === 'r' || e.key === 'R') {
             if (this.isStarted && !this.gameOver) {
@@ -493,18 +539,24 @@ class Game {
         // Block all other controls when paused
         if (this.paused) return;
 
+        // Mark key as pressed
+        this.keysPressed[e.key] = true;
+
         switch(e.key) {
             case 'ArrowLeft':
                 e.preventDefault();
                 this.movePiece(-1, 0);
+                this.startKeyRepeat(e.key, () => this.movePiece(-1, 0));
                 break;
             case 'ArrowRight':
                 e.preventDefault();
                 this.movePiece(1, 0);
+                this.startKeyRepeat(e.key, () => this.movePiece(1, 0));
                 break;
             case 'ArrowDown':
                 e.preventDefault();
                 this.movePiece(0, 1);
+                this.startKeyRepeat(e.key, () => this.movePiece(0, 1));
                 break;
             case 'ArrowUp':
             case 'x':
@@ -521,7 +573,91 @@ class Game {
                 e.preventDefault();
                 this.hardDrop();
                 break;
+            case 'c':
+            case 'C':
+                e.preventDefault();
+                this.holdPiece();
+                break;
+            case 'v':
+            case 'V':
+                e.preventDefault();
+                this.retrieveHeldPiece();
+                break;
+            case 'u':
+            case 'U':
+                e.preventDefault();
+                this.undoLastDrop();
+                break;
         }
+    }
+
+    handleKeyUp(e) {
+        // Mark key as released
+        this.keysPressed[e.key] = false;
+
+        // Stop any repeat timer for this key
+        if (this.keyRepeatTimers[e.key]) {
+            clearInterval(this.keyRepeatTimers[e.key]);
+            delete this.keyRepeatTimers[e.key];
+        }
+    }
+
+    startKeyRepeat(key, action) {
+        // Clear any existing timer for this key
+        if (this.keyRepeatTimers[key]) {
+            clearInterval(this.keyRepeatTimers[key]);
+        }
+
+        // Start repeating after initial delay
+        setTimeout(() => {
+            if (this.keysPressed[key]) {
+                this.keyRepeatTimers[key] = setInterval(() => {
+                    if (this.keysPressed[key] && !this.paused && !this.isAnimating) {
+                        action();
+                    }
+                }, this.keyRepeatInterval);
+            }
+        }, this.keyRepeatDelay);
+    }
+
+    setupButtonHold(buttonId, action) {
+        const button = document.getElementById(buttonId);
+        let holdInterval;
+        let holdTimeout;
+
+        const startHold = () => {
+            action(); // Execute immediately
+
+            // Start repeating after delay
+            holdTimeout = setTimeout(() => {
+                holdInterval = setInterval(() => {
+                    if (!this.paused && !this.isAnimating) {
+                        action();
+                    }
+                }, this.keyRepeatInterval);
+            }, this.keyRepeatDelay);
+        };
+
+        const stopHold = () => {
+            if (holdTimeout) {
+                clearTimeout(holdTimeout);
+                holdTimeout = null;
+            }
+            if (holdInterval) {
+                clearInterval(holdInterval);
+                holdInterval = null;
+            }
+        };
+
+        button.addEventListener('mousedown', startHold);
+        button.addEventListener('mouseup', stopHold);
+        button.addEventListener('mouseleave', stopHold);
+        button.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            startHold();
+        });
+        button.addEventListener('touchend', stopHold);
+        button.addEventListener('touchcancel', stopHold);
     }
 
     togglePause() {
@@ -578,6 +714,31 @@ class Game {
             this.currentPiece.y -= dy;
 
             if (dy > 0) {
+                // Save state BEFORE merging (for undo)
+                this.lastBoardState = this.board.map(row => [...row]);
+                this.lastScore = this.score;
+                this.lastLines = this.lines;
+                this.lastLevel = this.level;
+                this.lastPlacedPiece = {
+                    type: this.currentPiece.type,
+                    shape: this.currentPiece.shape,
+                    rotation: this.currentPiece.rotation,
+                    x: this.currentPiece.x,
+                    y: this.currentPiece.y
+                };
+                // Save the current piece that's about to be replaced
+                this.lastCurrentPiece = {
+                    type: this.nextPieces[0].type,
+                    shape: this.nextPieces[0].shape,
+                    rotation: this.nextPieces[0].rotation
+                };
+                // Save the next pieces queue (deep copy)
+                this.lastNextPieces = this.nextPieces.map(p => ({
+                    type: p.type,
+                    shape: p.shape,
+                    rotation: p.rotation
+                }));
+
                 this.merge();
                 this.clearLines();
                 // Get the next piece from the queue and shift the queue
@@ -585,6 +746,9 @@ class Game {
                 // Add a new piece to the end of the queue
                 this.nextPieces.push(this.createPiece());
                 this.drawNext();
+
+                // Allow holding again for the new piece
+                this.canHold = true;
 
                 if (this.collision()) {
                     this.endGame();
@@ -657,6 +821,142 @@ class Game {
         this.movePiece(0, 1);
     }
 
+    holdPiece() {
+        // C key - Save current block
+        if (!this.isStarted || this.isAnimating || this.paused || this.holdUsesLeft <= 0) return;
+
+        // Can only save if no piece is currently held
+        if (this.heldPiece !== null) {
+            if (window.showToast) {
+                showToast('Already have a saved block! Press V to retrieve it.', 'warning');
+            }
+            return;
+        }
+
+        // Save current piece and get next piece
+        this.heldPiece = {
+            type: this.currentPiece.type,
+            shape: SHAPES[this.currentPiece.type][0],
+            rotation: 0
+        };
+        this.currentPiece = this.nextPieces.shift();
+        this.nextPieces.push(this.createPiece());
+
+        // Reset current piece position
+        this.currentPiece.x = Math.floor(COLS / 2) - Math.floor(this.currentPiece.shape[0].length / 2);
+        this.currentPiece.y = 0;
+
+        // Update displays
+        this.drawNext();
+        this.drawHold();
+        this.updateHoldCounter();
+
+        if (window.showToast) {
+            showToast('Block saved! Press V to retrieve it.', 'success');
+        }
+    }
+
+    retrieveHeldPiece() {
+        // V key - Retrieve saved block
+        if (!this.isStarted || this.isAnimating || this.paused || !this.canHold || this.holdUsesLeft <= 0) return;
+
+        // Can only retrieve if there's a held piece
+        if (this.heldPiece === null) {
+            if (window.showToast) {
+                showToast('No saved block! Press C to save current block.', 'warning');
+            }
+            return;
+        }
+
+        // Replace current piece with held piece
+        this.currentPiece = {
+            type: this.heldPiece.type,
+            shape: SHAPES[this.heldPiece.type][0],
+            rotation: 0,
+            x: Math.floor(COLS / 2) - Math.floor(SHAPES[this.heldPiece.type][0][0].length / 2),
+            y: 0
+        };
+
+        // Clear held piece
+        this.heldPiece = null;
+
+        // Decrease hold uses and prevent holding again until piece is placed
+        this.holdUsesLeft--;
+        this.canHold = false;
+
+        // Update displays
+        this.drawHold();
+        this.updateHoldCounter();
+
+        if (window.showToast) {
+            showToast(`Block retrieved! ${this.holdUsesLeft} uses remaining.`, 'success');
+        }
+    }
+
+    undoLastDrop() {
+        // U key - Undo the last block placement
+        if (!this.isStarted || this.isAnimating || this.paused || this.gameOver) return;
+
+        // Check if undo is available
+        if (this.undoUsesLeft <= 0) {
+            if (window.showToast) {
+                showToast('No undo uses remaining!', 'warning');
+            }
+            return;
+        }
+
+        // Check if there's a state to restore
+        if (this.lastBoardState === null) {
+            if (window.showToast) {
+                showToast('Nothing to undo!', 'warning');
+            }
+            return;
+        }
+
+        // Restore the board state (before the piece was placed)
+        this.board = this.lastBoardState.map(row => [...row]);
+        this.score = this.lastScore;
+        this.lines = this.lastLines;
+        this.level = this.lastLevel;
+        this.dropInterval = Math.max(100, 1000 - (this.level - 1) * 100);
+
+        // Restore the piece that was dropped (so player can place it again)
+        this.currentPiece = {
+            type: this.lastPlacedPiece.type,
+            shape: this.lastPlacedPiece.shape,
+            rotation: this.lastPlacedPiece.rotation,
+            x: Math.floor(COLS / 2) - Math.floor(this.lastPlacedPiece.shape[0].length / 2),
+            y: 0
+        };
+
+        // Restore the next pieces queue
+        this.nextPieces = this.lastNextPieces.map(p => ({
+            type: p.type,
+            shape: p.shape,
+            rotation: p.rotation,
+            x: 0,
+            y: 0
+        }));
+
+        // Decrement undo uses
+        this.undoUsesLeft--;
+
+        // Clear the undo state so user must drop the block again before next undo
+        this.lastBoardState = null;
+        this.lastPlacedPiece = null;
+        this.lastCurrentPiece = null;
+        this.lastNextPieces = null;
+
+        // Update displays
+        this.updateScore();
+        this.updateUndoCounter();
+        this.drawNext();
+
+        if (window.showToast) {
+            showToast(`Undo successful! ${this.undoUsesLeft} undo${this.undoUsesLeft !== 1 ? 's' : ''} remaining.`, 'success');
+        }
+    }
+
     collision() {
         const shape = this.currentPiece.shape;
         for (let y = 0; y < shape.length; y++) {
@@ -707,6 +1007,12 @@ class Game {
             // Lock input during animation
             this.isAnimating = true;
 
+            // Increment combo by number of lines cleared (1 line = 1 combo)
+            this.combo += linesToClear.length;
+            if (this.combo > this.maxCombo) {
+                this.maxCombo = this.combo;
+            }
+
             // Play sound effect based on number of lines cleared
             this.playLineClearSound(linesToClear.length);
 
@@ -729,9 +1035,15 @@ class Game {
                 });
 
                 this.lines += linesToClear.length;
-                // Scoring: 100 for 1 line, 300 for 2, 500 for 3, 800 for 4
-                const points = [0, 100, 300, 500, 800][linesToClear.length];
-                this.score += points * this.level;
+
+                // Scoring with combo multiplier: 100 for 1 line, 300 for 2, 500 for 3, 800 for 4
+                const basePoints = [0, 100, 300, 500, 800][linesToClear.length];
+                const comboMultiplier = 1 + (this.combo - linesToClear.length) * 0.1; // Each previous combo line adds 0.1x
+                const points = Math.floor(basePoints * this.level * comboMultiplier);
+                this.score += points;
+
+                // Show combo notification
+                this.showComboNotification(linesToClear.length, comboMultiplier);
 
                 // Level up every 10 lines
                 this.level = Math.floor(this.lines / 10) + 1;
@@ -742,6 +1054,40 @@ class Game {
                 // Unlock input after animation
                 this.isAnimating = false;
             }, 400); // Wait for animation to complete
+        } else {
+            // No lines cleared - reset combo immediately
+            if (this.combo > 0) {
+                this.combo = 0;
+                this.updateComboDisplay();
+            }
+        }
+    }
+
+    showComboNotification(linesCleared, multiplier) {
+        if (this.combo > linesCleared && window.showToast) {
+            const comboText = `${this.combo} Line COMBO! ${multiplier.toFixed(1)}x Score`;
+            const lineText = linesCleared === 4 ? 'TETRIS!' : `${linesCleared} Line${linesCleared > 1 ? 's' : ''}`;
+            showToast(`${lineText} - ${comboText}`, 'success');
+        }
+
+        // Update combo display
+        this.updateComboDisplay();
+    }
+
+    updateComboDisplay() {
+        const comboElement = document.getElementById('combo');
+        if (comboElement) {
+            if (this.combo > 0) {
+                comboElement.textContent = `${this.combo} COMBO`;
+                comboElement.style.display = 'block';
+
+                // Add pulse animation
+                comboElement.classList.remove('combo-pulse');
+                void comboElement.offsetWidth; // Trigger reflow
+                comboElement.classList.add('combo-pulse');
+            } else {
+                comboElement.style.display = 'none';
+            }
         }
     }
 
@@ -866,6 +1212,60 @@ class Game {
         document.getElementById('lines').textContent = this.lines;
     }
 
+    updateHoldCounter() {
+        const holdCounter = document.getElementById('holdCounter');
+        if (holdCounter) {
+            holdCounter.textContent = this.holdUsesLeft;
+            // Update button states
+            const holdBtn = document.getElementById('holdBtn');
+            const retrieveBtn = document.getElementById('retrieveBtn');
+
+            if (this.holdUsesLeft <= 0) {
+                // No uses left - disable both buttons
+                holdBtn.disabled = true;
+                holdBtn.style.opacity = '0.5';
+                retrieveBtn.disabled = true;
+                retrieveBtn.style.opacity = '0.5';
+            } else {
+                // Enable save button if no piece is held
+                if (this.heldPiece === null) {
+                    holdBtn.disabled = false;
+                    holdBtn.style.opacity = '1';
+                } else {
+                    holdBtn.disabled = true;
+                    holdBtn.style.opacity = '0.5';
+                }
+
+                // Enable retrieve button if piece is held and can retrieve
+                if (this.heldPiece !== null && this.canHold) {
+                    retrieveBtn.disabled = false;
+                    retrieveBtn.style.opacity = '1';
+                } else {
+                    retrieveBtn.disabled = true;
+                    retrieveBtn.style.opacity = '0.5';
+                }
+            }
+        }
+    }
+
+    updateUndoCounter() {
+        const undoCounter = document.getElementById('undoCounter');
+        if (undoCounter) {
+            undoCounter.textContent = this.undoUsesLeft;
+            // Update button state
+            const undoBtn = document.getElementById('undoBtn');
+            if (undoBtn) {
+                if (this.undoUsesLeft <= 0 || this.lastBoardState === null) {
+                    undoBtn.disabled = true;
+                    undoBtn.style.opacity = '0.5';
+                } else {
+                    undoBtn.disabled = false;
+                    undoBtn.style.opacity = '1';
+                }
+            }
+        }
+    }
+
     endGame() {
         this.gameOver = true;
         document.getElementById('finalScore').textContent = this.score;
@@ -904,11 +1304,29 @@ class Game {
             this.createPiece(),
             this.createPiece()
         ];
+        this.heldPiece = null;
+        this.canHold = true;
+        this.holdUsesLeft = 3;
+
+        // Reset undo system
+        this.lastBoardState = null;
+        this.lastPlacedPiece = null;
+        this.lastCurrentPiece = null;
+        this.lastNextPieces = null;
+        this.undoUsesLeft = 3;
+
+        // Reset combo system
+        this.combo = 0;
+        this.maxCombo = 0;
 
         document.getElementById('gameOver').classList.add('hidden');
         document.getElementById('loginGate').classList.add('hidden');
         this.updateScore();
         this.drawNext();
+        this.drawHold();
+        this.updateHoldCounter();
+        this.updateUndoCounter();
+        this.updateComboDisplay();
         this.lastTime = performance.now();
 
         // Restart background music if enabled
@@ -1066,6 +1484,37 @@ class Game {
         // Add highlight
         this.ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
         this.ctx.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE / 2, BLOCK_SIZE / 2);
+    }
+
+    drawHold() {
+        const size = 25;
+        // Clear the canvas completely
+        this.holdCtx.clearRect(0, 0, this.holdCanvas.width, this.holdCanvas.height);
+        // Fill with background color
+        this.holdCtx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+        this.holdCtx.fillRect(0, 0, this.holdCanvas.width, this.holdCanvas.height);
+
+        if (this.heldPiece) {
+            const shape = this.heldPiece.shape;
+            const offsetX = (this.holdCanvas.width - shape[0].length * size) / 2;
+            const offsetY = (this.holdCanvas.height - shape.length * size) / 2;
+
+            for (let y = 0; y < shape.length; y++) {
+                for (let x = 0; x < shape[y].length; x++) {
+                    if (shape[y][x]) {
+                        this.holdCtx.fillStyle = COLORS[this.heldPiece.type];
+                        this.holdCtx.fillRect(offsetX + x * size, offsetY + y * size, size, size);
+
+                        this.holdCtx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
+                        this.holdCtx.lineWidth = 1;
+                        this.holdCtx.strokeRect(offsetX + x * size, offsetY + y * size, size, size);
+
+                        this.holdCtx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+                        this.holdCtx.fillRect(offsetX + x * size, offsetY + y * size, size / 2, size / 2);
+                    }
+                }
+            }
+        }
     }
 
     drawNext() {

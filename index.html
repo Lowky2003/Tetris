@@ -89,6 +89,11 @@
         <div class="game-content">
             <div class="side-panel">
                 <div class="info-box">
+                    <h3>SAVED (C/V) <span id="holdCounter" style="color: #ffd700;">3</span></h3>
+                    <canvas id="holdCanvas" width="140" height="120"></canvas>
+                </div>
+
+                <div class="info-box">
                     <h3>NEXT 3</h3>
                     <canvas id="nextCanvas" width="140" height="280"></canvas>
                 </div>
@@ -107,10 +112,18 @@
                     <h3>LINES</h3>
                     <div id="lines">0</div>
                 </div>
+
+                <div class="info-box">
+                    <h3>UNDO (U) <span id="undoCounter" style="color: #ffd700;">3</span></h3>
+                    <div style="font-size: 14px; color: #aaa; margin-top: 5px;">Reverse last drop</div>
+                </div>
             </div>
 
             <div class="game-board">
-                <canvas id="gameCanvas" width="350" height="700"></canvas>
+                <canvas id="gameCanvas" width="400" height="800"></canvas>
+
+                <!-- Combo Display -->
+                <div id="combo" class="combo-display" style="display: none;">1x</div>
 
                 <!-- Login Gate Overlay -->
                 <div id="loginGate" class="login-gate">
@@ -150,14 +163,21 @@
                 <button class="control-btn" id="rightBtn">→</button>
             </div>
             <div class="button-row">
+                <button class="control-btn" id="holdBtn">SAVE (C)</button>
+                <button class="control-btn" id="retrieveBtn">GET (V)</button>
+            </div>
+            <div class="button-row">
                 <button class="control-btn wide" id="dropBtn">DROP</button>
                 <button class="control-btn wide" id="pauseBtn">PAUSE</button>
+            </div>
+            <div class="button-row">
+                <button class="control-btn wide" id="undoBtn">UNDO (U)</button>
             </div>
         </div>
 
         <div class="controls">
             <h3>KEYBOARD CONTROLS</h3>
-            <p><strong>←/→:</strong> Move | <strong>↑/X:</strong> Rotate CW | <strong>Z:</strong> Rotate CCW | <strong>↓:</strong> Soft Drop | <strong>Space:</strong> Hard Drop | <strong>P:</strong> Pause | <strong>R:</strong> Restart</p>
+            <p><strong>←/→:</strong> Move | <strong>↑/X:</strong> Rotate CW | <strong>Z:</strong> Rotate CCW | <strong>↓:</strong> Soft Drop | <strong>Space:</strong> Hard Drop | <strong>C:</strong> Save Block | <strong>V:</strong> Retrieve (3x) | <strong>U:</strong> Undo (3x) | <strong>P:</strong> Pause | <strong>R:</strong> Restart</p>
         </div>
     </div>
 
